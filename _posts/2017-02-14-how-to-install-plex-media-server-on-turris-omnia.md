@@ -1,7 +1,7 @@
 ---
 layout: post
 title:  "How to install Plex Media Server on Turris Omnia!"
-date:   2017-02-12 10:00:00 +0200
+date:   2017-02-14 01:42:16 +0200
 categories: turris-omnia plex-media-server
 ---
 
@@ -28,10 +28,13 @@ I started Googling only to find out the guys are trying to make it works, but ar
 People in the forums were complaining `unzip` don't work well to unzip the archive on the router itself. So I have unzipped it on my macbook and uploaded it to the Omnia over scp.
 
 {% highlight bash linenos %}
+wget "https://downloads.plex.tv/plex-media-server/1.3.4.3285-b46e0ea/PlexMediaServer-1.3.4.3285-b46e0ea-arm7.spk"
 mkdir plex
 mv PlexMediaServer-1.3.4.3285-b46e0ea-arm7.spk plex/PlexMediaServer-1.3.4.3285-b46e0ea-arm7.tar
+cd plex
 tar fxv PlexMediaServer-1.3.4.3285-b46e0ea-arm7.tar
 tar fxz package.tgz
+rm package.tgz PlexMediaServer-1.3.4.3285-b46e0ea-arm7.tar
 scp -r ../plex root@YOUR_OMNIA_IP:/root
 {% endhighlight %}
 
@@ -40,6 +43,8 @@ scp -r ../plex root@YOUR_OMNIA_IP:/root
 ### Prerequisites
 
 The Turris Omnia sports a Marvel Armada 385 1.6GHz dual-core ARMv7 compatible sprocessor. I had seen that in a few forum posts, people were reporting struggle to make the Plex build for Synology work. It would make sense to pick this one up, because the Synology has an ARMv7 compatible processor as well. I will be trying it on as well.
+
+You can name your LXC whatever you would like. For the purposes of this how-to I will be using `plex`.
 
 ### First attempt - Native support
 
@@ -53,10 +58,12 @@ There is! The Omnia has support for LXC, so this was the next thing I tried on.
 
 I have used docker before and knew one of the lightweightest Linux distributions one could wish for is [Alpine Linux][alpine-linux]. Let's try that..
 
-You have already uploaded the files to the Omnia, but you can't access them in the LXC. You need to create a binding mount point.
+You have already uploaded the files to the Omnia, but you can't access them in the LXC. You need to create a mount point and bind it to the device content.
 
 {% highlight bash %}
-mount -o bind /root/plex <location-of-the-lxc-rootfs>
+mkdir -p /srv/lxc/plex/rootfs/mnt/sda1
+mount -o bind /tmp/run/mountd/sda1 /srv/lxc/plex/rootfs/mnt/sda1
+cp -rf plex /srv/lxc/plex/rootfs/root
 {% endhighlight %}
 
 Well, it didn't work. A lot of libraries were missing here as well. I managed to find a docker image with glibc support, so I extracted the directions on how to install it properly. Problem was there were still issues with other libraries and up to this point I was not so keen on investing time to make it work.
@@ -69,30 +76,55 @@ If you managed to get Plex working on LXC using Alpine Linux, let me know and I 
 
 I managed to run Plex without problems on the Ubuntu LXC. Here is what I did and my train of thought.
 
+Upon first start you will need to get the plex files copied over to the LXC. You may be familiar with these commands from my second attempt.
+
+{% highlight bash %}
+mkdir -p /srv/lxc/plex/rootfs/mnt/sda1
+mount -o bind /tmp/run/mountd/sda1 /srv/lxc/plex/rootfs/mnt/sda1
+cp -rf plex /srv/lxc/plex/rootfs/root
+{% endhighlight %}
+
 Let's first examine what's the situation out of the box. Let's see if the dynamic libraries are to be found.
 
-(output of ldd here)
+{% highlight bash %}
+lxc-attach -n plex
+cd plex
+./Plex\ Media\ Server
+{% endhighlight %}
 
-Well, lets see where its trying to get them from. Let's use `strace`.
+{% highlight bash %}
+./Plex Media Server: error while loading shared libraries: libboost_atomic.so.1.59.0: cannot open shared object file: No such file or directory
+{% endhighlight %}
+
+Well, we have the missing library in this very folder.
+Let's move the libraries to a more appropriate folder and instruct Linux where to find it.
+
+{% highlight bash linenos %}
+mkdir -p /usr/lib/plexmediacenter
+mv -fi *.so* /usr/lib/plexmediacenter
+echo "/usr/lib/plexmediacenter" >> /etc/ld.so.conf.d/plexmediacenter.conf
+ldconfig
+{% endhighlight %}
+
+Let's see if everything is okay now. We will be using `strace`.
 
 {% highlight bash linenos %}
 apt-get update && apt-get install -y strace
 strace ./Plex\ Media\ Server
 {% endhighlight %}
 
-(output of strace here)
-
 Um.. seems like there are some hardcoded paths and the libraries that are distributed with Plex are not found either. Let's move the application code to the hardcoded location and add the libraries to the linker and see if that works.
 
+Seems like the application need to be under `/root/Library/Application Support/Plex Media Server/`, so let's move it and see how it looks.
+
 {% highlight bash linenos %}
-mkdir -p /usr/lib/plexmediacenter
-mv -fi *.so* /usr/lib/plexmediacenter
-echo "/usr/lib/plexmediacenter" >> /etc/ld.conf.d/plexmediacenter
-ldconfig
+mkdir -p "/root/Library/Application Support/"
+mv -fi /root/plex/* "/root/Library/Application Support/Plex Media Server"
+cd "/root/Library/Application Support/Plex Media Server"
 strace ./Plex\ Media\ Server
 {% endhighlight %}
 
-This seem to have worked. I can also see the Plex server on my Android Plex client!
+This seem to have worked. I can also see the Plex server on my Android Plex client listed as `LXC_NAME`.
 
 Now, if we quit the ssh session we will quit Plex as well. We need to find how to keep it working on the background.
 
