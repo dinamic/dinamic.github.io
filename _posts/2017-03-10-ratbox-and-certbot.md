@@ -24,6 +24,43 @@ To obtain the SSL certificate issue:
 certbot --debug certonly --standalone -d irc.salsaparty.bg
 ```
 
+After the certificate is generated, certbot will let you know in which folder you can find it. The output looks something like this:
+
+```
+MPORTANT NOTES:
+ - Congratulations! Your certificate and chain have been saved at
+   /usr/local/etc/letsencrypt/live/irc.salsaparty.bg/fullchain.pem.
+   Your cert will expire on 2017-06-08. To obtain a new or tweaked
+   version of this certificate in the future, simply run certbot
+   again. To non-interactively renew *all* of your certificates, run
+   "certbot renew"
+ - If you lose your account credentials, you can recover through
+   e-mails sent to nikola@petkanski.com.
+ - Your account credentials have been saved in your Certbot
+   configuration directory at /usr/local/etc/letsencrypt. You should
+   make a secure backup of this folder now. This configuration
+   directory will also contain certificates and private keys obtained
+   by Certbot so making regular backups of this folder is ideal.
+ - If you like Certbot, please consider supporting our work by:
+
+   Donating to ISRG / Let's Encrypt:   https://letsencrypt.org/donate
+   Donating to EFF:                    https://eff.org/donate-le
+```
+
+As you can see, in my case the folder is `/usr/local/etc/letsencrypt/live/irc.salsaparty.bg/`
+
+Ratbox requires a Deffie-Helman key. You can generate one as so:
+
+```
+openssl dhparam -out dh.pem 4096
+```
+
+I would suggest moving this file to the folder the certificates are located in, so you are storing everything together.
+
+```
+mv dh.pem /usr/local/etc/letsencrypt/live/irc.salsaparty.bg/
+```
+
 # Configuring Ratbox
 
 I have found out that on different systems the certificates tend to be stored at different locations. Be sure to modify the following lines as per the correct ones for your system.
