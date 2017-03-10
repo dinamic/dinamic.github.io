@@ -16,7 +16,9 @@ I will assume you already have the following installed and configured already:
 
 All examples will be using irc.salsaparty.bg as my irc server. Whenever you see that, be sure to replace it with the address of your own one.
 
-# Getting the SSL certificate
+# The SSL certificate
+
+## Generating the SSL/TLS certificate
 
 To obtain the SSL certificate issue:
 
@@ -60,6 +62,14 @@ I would suggest moving this file to the folder the certificates are located in, 
 ```
 mv dh.pem /usr/local/etc/letsencrypt/live/irc.salsaparty.bg/
 ```
+
+## Renewing the certificate
+
+Certificates issued by [Let's Encrypt][letsencrypt] usually last for 3 months. They should be renewed manually a week before expiring.
+
+I will be looking at ways to automate the renewal and rehash the irc server to accomodate for the new certificate.
+
+To be done.
 
 # Configuring Ratbox
 
